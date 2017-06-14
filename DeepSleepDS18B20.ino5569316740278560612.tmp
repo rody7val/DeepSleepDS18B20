@@ -5,7 +5,6 @@
 
 // JSON encoder/decoder
 #include <ArduinoJson.h>
-DynamicJsonBuffer jsonBuffer;
 
 // Depuración remota sobre telnet
 #include <RemoteDebug.h>
@@ -19,13 +18,12 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
 // Inicial
-double _temperatura;
+long _temperatura;
 long _startMills;
 int _vcc;
 bool _logged = false;
 const String _placa = "A";
 const String _sector = "eje-1";
-const String _pin = String(ONE_WIRE_BUS);
 
 // .env
 typedef void (*GeneralMessageFunction) ();
@@ -34,13 +32,13 @@ typedef void (*GeneralMessageFunction) ();
 // Callback Guardar Temperatura
 void GuardarTemperatura() {
   // Cazar Objeto JSON
+  DynamicJsonBuffer jsonBuffer;
   JsonObject& sensor = jsonBuffer.parseObject(response);
   sensor_saved_id = sensor["sensor"]["_id"];
 
   // Si falla
   if (!sensor.success()) {
     Debug.printf("Falló la decodificación");
-    sensor.printTo(Debug);
     return;
   }
 
@@ -52,13 +50,13 @@ void GuardarTemperatura() {
 // Callback Obtener Token
 void GetApiToken() {
   // Cazar Objeto JSON
+  DynamicJsonBuffer jsonBuffer;
   JsonObject& user = jsonBuffer.parseObject(response);
   api_user_token = user["token"];
 
   // Si falla
   if (!user.success()) {
     Debug.printf("Fallo la decodificacion");
-    user.printTo(Debug);
     return;
   }
   
@@ -96,14 +94,13 @@ void promesa(String url, String path, String json, GeneralMessageFunction next) 
 
   } else if (httpCode == 403) {
 
-    Debug.println("Token expirado!");
+    Debug.printf("Token expirado.");
     _logged = false;
     http.end();
     return;
 
   } else {
-    Debug.println("Error server ->");
-    Debug.println(http.getString());
+    Debug.printf("Error num -> ", http.errorToString(httpCode).c_str());
   }
 
   http.end();
@@ -153,11 +150,16 @@ void loop(void){
   // Middleware controler
   if (!_logged) {
 
-    // Objeto JSON_User
-    static String json_user = String("{") +
-      "\"email\"   :\""+ api_user_email +"\","+
-      "\"password\":\""+ api_user_pass +"\"" +
-    "}";
+    // Datos JSON_Sensor
+    static char * json_sensor = String("{" +
+      "\"temp\":\""+ String(_temperatura) +"\","+
+      "\"time\":\""+ String(_startMills) +"\","+
+      "\"vcc\" :\""+ String(_vcc) +"\","+
+      // "\"logged\":\""+ String(_logged) +"\","+        // No nos sirve aquí
+      "\"placa\" :\""+ _placa +"\","+
+      "\"sector\":\""+ _sector +"\","+
+      "\"pin\"   :\""+ _pin "\""+
+      "}");
 
     // Obtener Token
     url = "http://"+ api_host +":"+ api_port;
@@ -165,27 +167,15 @@ void loop(void){
     return;
   }
 
-  // Datos JSON_Sensor
-  static String json_sensor = String("{") +
-    "\"temp\":"+ String(_temperatura) +","+
-    "\"time\":"+ String(_startMills) +","+
-    "\"vcc\":"+ String(_vcc) +","+
-    "\"placa\":\""+ _placa +"\","+
-    "\"sector\":\""+ _sector +"\","+
-    "\"pin\":\""+ _pin +"\""+
-  "}";
+  // Objeto JSON_User
+  static char * json_user = String("{" +
+    "\"email\" :\""+ api_user_email +"\","+
+    "\"password\":\""+ api_user_pass +"\","+
+    "\"logged\":\""+ String(_logged) +"\""+        // Aquí sierve para comprobar que siempre sea falso del lado servidor
+    "}");
 
   // Guardar Temperatura
   url = "http://"+ api_host +":"+ api_port;
   promesa(url, api_new_sensor, json_sensor, GuardarTemperatura);
 }
-
-
-
-
-
-
-
-
-
 
