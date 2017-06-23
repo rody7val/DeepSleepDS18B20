@@ -11,21 +11,12 @@ DynamicJsonBuffer jsonBuffer;
 #include <RemoteDebug.h>
 RemoteDebug Debug;
 
-// Dependencias para DS18B20
+// Dependencias para Sensoress DS18B20
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#define ONE_WIRE_BUS 2
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
-
-// Inicial
-double _temperatura;
-long _startMills;
-int _vcc;
-bool _logged = false;
-const String _placa = "A";
-const String _sector = "eje-1";
-const String _pin = String(ONE_WIRE_BUS);
+#define SensorBus 2
+OneWire SensorModel(SensorBus);
+DallasTemperature SensorsController(&SensorModel);
 
 // .env
 typedef void (*GeneralMessageFunction) ();
@@ -128,10 +119,13 @@ void setup(void){
   Debug.print("Conectado a WiFi! La IP es: ");
   Debug.println(WiFi.localIP());
   
-  // Inicializar libreria DallasTemperature
-  sensors.begin();
-}
+  // Inicializar Sensores
+  SensorsController.begin();
 
+  // Setear resolución entre 9 y 12 bits, menos es más rapido
+  SensorsController.setResolution(sr1, 10);
+  SensorsController.setResolution(sr2, 10);
+}
 
 void loop(void){
   // Manejo de depurción
@@ -142,11 +136,12 @@ void loop(void){
   Debug.print("Vcc -> ");
   Debug.println(_vcc);
 
-  // Obtener Temperatura
-  sensors.requestTemperatures();
-  _temperatura = sensors.getTempCByIndex(0);
-  Debug.print("Temperatura -> ");
-  Debug.println(_temperatura);
+  // Obtener y mostrar Temperaturas
+  SensorsController.requestTemperatures();
+  Debug.print("Temperaturas -> ");
+  temp[0] = SensorsController.getTempC(sr1);
+  temp[1] = SensorsController.getTempC(sr2);
+  Debug.println("[" + String(temp[0]) + ", " + String(temp[1]) + "]");
 
   String url;
 
@@ -167,7 +162,8 @@ void loop(void){
 
   // Datos JSON_Sensor
   static String json_sensor = String("{") +
-    "\"temp\":"+ String(_temperatura) +","+
+    "\"temp\":"+ "[" + String(temp[0]) +","+ String(temp[1]) +"]"+","+
+    "\"prefix\":"+ "[\""+ sr1_prefix +"\",\""+ sr2_prefix +"\"]"+","+    
     "\"time\":"+ String(_startMills) +","+
     "\"vcc\":"+ String(_vcc) +","+
     "\"placa\":\""+ _placa +"\","+
@@ -179,13 +175,4 @@ void loop(void){
   url = "http://"+ api_host +":"+ api_port;
   promesa(url, api_new_sensor, json_sensor, GuardarTemperatura);
 }
-
-
-
-
-
-
-
-
-
 
